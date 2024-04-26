@@ -27,6 +27,7 @@ class DaCeReducer:
         except subprocess.TimeoutExpired:
             proc.kill()
             outs, errs = proc.communicate()
+            print(f"ran {infile}")
         return outs, errs
     
 
@@ -61,6 +62,16 @@ class DaCeReducer:
         with open(fname, "w") as f:
             f.writelines(lines)
 
+    def remove_comments(self, fname):
+        cleaned = None
+        with open(fname, "r") as f:
+            contents = f.read()
+            cleaned = contents
+            cleaned = re.sub("^#.*\n", "", contents, flags=re.MULTILINE)
+        with open(fname, "w") as f:
+            f.write(cleaned)
+        
+
     def compare_to_last(self, outs, errs):
         if (self.pattern is not None) and (self.pattern != ""):
             if re.match(self.pattern, outs) or re.match(self.pattern, errs):
@@ -68,7 +79,9 @@ class DaCeReducer:
         else:
             s1 = self.last_stdout + self.last_stderr
             s2 = outs + errs
-            if self.threshold >= (Levenshtein.ratio(s1, s2) * 100):
+            similarity = Levenshtein.ratio(s1, s2) * 100
+            print(f"similarity was {similarity}, threshold is set to {self.threshold}")
+            if self.threshold <= similarity:
                 return True
         return False
             
@@ -76,25 +89,34 @@ class DaCeReducer:
 
 
     def reduce(self):
-        # create a copy of the shortest existing version
-        newfile = self.workdir + "/ver_" + str(self.versions_tested) + ".py"
-        shutil.copy(self.shortest, newfile)
 
-        # comment out a random line in the copy
-        for line in range(1, self.get_sloc(newfile)):
-            self.comment_out_sloc(line, newfile)
-            # run copy and compare to last if equal add to version
-            outs, errs = self.run_and_capture(newfile)
-            if self.compare_to_last(outs, errs):
-                # equivalent save new version
-                if self.shortest != self.infile:
-                    os.remove(self.shortest)
-                self.shortest = newfile
-            else:
-                # not equivalent, delete newfile
-                os.remove(newfile)
-        # copy shortest version to outfile
-        shutil.copy(self.outfile, self.shortest)
+        found_shorter = True # set this to true initially, will be set to true in each loop iter where we reduce sloc
+        while (found_shorter):
+            found_shorter = False
+            current_sloc = self.get_sloc(self.shortest)
+            print(f'current shortest example is {current_sloc} lines long')
+            for line in range(1, current_sloc):
+                # create a copy of the shortest existing version
+                newfile = "ver_" + str(self.versions_tested) + ".py"
+                shutil.copy(self.shortest, newfile)
+                # comment out line
+                self.comment_out_sloc(line, newfile)
+                # run copy and compare to last if equal add to version
+                outs, errs = self.run_and_capture(newfile)
+                self.versions_tested += 1
+                if self.compare_to_last(outs, errs):
+                    # equivalent save new version
+                    if self.shortest != self.infile:
+                        os.remove(self.shortest)
+                    self.shortest = newfile
+                    found_shorter = True
+                else:
+                    # not equivalent, delete newfile
+                    os.remove(newfile)
+        # copy shortest version to outfile after cleanup
+        self.remove_comments(self.shortest)
+        shutil.copy(self.shortest, self.outfile)
+        os.remove(self.shortest)
 
 
 if __name__ == "__main__":
@@ -110,9 +132,5 @@ if __name__ == "__main__":
     reducer = DaCeReducer(args['infile'], args['outfile'], args['threshold'], args['pattern'])
     reducer.reduce()
 
-
-# comment out a random line in a copy of infile
-# call copy, capture stdout and stderr
-# determine  edit distance to last
 
 
