@@ -5,8 +5,9 @@ import argparse
 import subprocess
 import Levenshtein
 
+
 class DaCeReducer:
-    
+
     def __init__(self, infile, outfile, threshold, pattern):
         self.infile = infile
         self.outfile = outfile
@@ -16,12 +17,13 @@ class DaCeReducer:
         self.workdir = "."
         self.versions_tested = 0
         self.last_stdout, self.last_stderr = self.run_and_capture(self.infile)
-    
+
     def run_and_capture(self, infile, timeout=5):
         # call input file, capture stdout and stderr, save in last
         outs = ""
         errs = ""
-        proc = subprocess.Popen(["python3", infile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(
+            ["python3", infile], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             outs, errs = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -29,7 +31,6 @@ class DaCeReducer:
             outs, errs = proc.communicate()
             print(f"ran {infile}")
         return outs, errs
-    
 
     def get_sloc(self, fname):
         """Find the number of SLOC in a file, assume everything is code except lines starting with a # mark"""
@@ -42,7 +43,6 @@ class DaCeReducer:
                 else:
                     counter += 1
             return counter
-
 
     def comment_out_sloc(self, n, fname):
         """Comment out the n-th SLOC in a file, assume everything is code except lines starting with a # mark"""
@@ -70,7 +70,6 @@ class DaCeReducer:
             cleaned = re.sub("^#.*\n", "", contents, flags=re.MULTILINE)
         with open(fname, "w") as f:
             f.write(cleaned)
-        
 
     def compare_to_last(self, outs, errs):
         if (self.pattern is not None) and (self.pattern != ""):
@@ -80,17 +79,16 @@ class DaCeReducer:
             s1 = self.last_stdout + self.last_stderr
             s2 = outs + errs
             similarity = Levenshtein.ratio(s1, s2) * 100
-            print(f"similarity was {similarity}, threshold is set to {self.threshold}")
+            print(
+                f"similarity was {similarity}, threshold is set to {self.threshold}")
             if self.threshold <= similarity:
                 return True
         return False
-            
-
-
 
     def reduce(self):
 
-        found_shorter = True # set this to true initially, will be set to true in each loop iter where we reduce sloc
+        # set this to true initially, will be set to true in each loop iter where we reduce sloc
+        found_shorter = True
         while (found_shorter):
             found_shorter = False
             current_sloc = self.get_sloc(self.shortest)
@@ -121,16 +119,16 @@ class DaCeReducer:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-                prog='DaCeTestReducer',
-                description='Try to simplify DaCe Tests without changing their behaviour')
+        prog='DaCeTestReducer',
+        description='Try to simplify DaCe Tests without changing their behaviour')
     parser.add_argument('-i', '--infile', help="Python file to reduce")
     parser.add_argument('-o', '--outfile', help="Reduced output file")
-    parser.add_argument('-t', '--threshold', default=90, help='String edit distance in percent of output lenght to consider output equivalent.')
-    parser.add_argument('-p', '--pattern', default=None, help='String pattern the output needs to match to be considered equivalent. Threshold is ignored if this is given.')
+    parser.add_argument('-t', '--threshold', default=90,
+                        help='String edit distance in percent of output lenght to consider output equivalent.')
+    parser.add_argument('-p', '--pattern', default=None,
+                        help='String pattern the output needs to match to be considered equivalent. Threshold is ignored if this is given.')
     args = vars(parser.parse_args())
 
-    reducer = DaCeReducer(args['infile'], args['outfile'], args['threshold'], args['pattern'])
+    reducer = DaCeReducer(args['infile'], args['outfile'],
+                          args['threshold'], args['pattern'])
     reducer.reduce()
-
-
-
