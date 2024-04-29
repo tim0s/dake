@@ -1,0 +1,5 @@
+SDFG(g)
+g.STATE(s0)
+g.s0.READ(read_a, A)
+g.s0.WRITE(write_b, B)
+g.s0.MEMLET(read_a, write_b)
